@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+## Create the projects/namespaces
+oc new-project prometeo-dev --display-name="Prometeo - Dev"
+oc policy add-role-to-user view system:serviceaccount:$(oc project -q):default -n $(oc project -q)
+
+oc new-project prometeo-test --display-name="Prometeo - Test"
+oc policy add-role-to-user view system:serviceaccount:$(oc project -q):default -n $(oc project -q)
+oc policy add-role-to-user system:image-puller system:serviceaccount:prometeo-test:default --namespace=prometeo-dev
+
+oc new-project prometeo-prod --display-name="Prometeo - Production"
+oc policy add-role-to-user view system:serviceaccount:$(oc project -q):default -n $(oc project -q)
+oc policy add-role-to-user system:image-puller system:serviceaccount:prometeo-prod:default --namespace=prometeo-dev
+
+
+## Setup jenkins & Assign permissions
+oc new-project cicd --display-name="Jenkins - CI/CD"
+oc import-image docker.io/openshift/jenkins-2-centos7:latest --confirm
+oc new-app jenkins-ephemeral -p NAMESPACE=cicd -p JENKINS_IMAGE_STREAM_TAG=jenkins-2-centos7:latest
+oc policy add-role-to-user edit system:serviceaccount:cicd:jenkins -n prometeo-dev
+oc policy add-role-to-user edit system:serviceaccount:cicd:jenkins -n prometeo-test
+oc policy add-role-to-user edit system:serviceaccount:cicd:jenkins -n prometeo-prod
+
+
+## Setup the base images
+oc project prometeo-dev
+oc new-build https://github.com/gatblau/ocp_s2i_java --to=java --strategy=docker --name=java
+
+oc new-build https://github.com/gatblau/ocp_s2i_java_ansible --to=jansible --strategy=docker --name=jansible
+oc set triggers bc/jansible --from-image=java:latest
+
+
+## Setup the dependent database and ssh secrets
+oc project prometeo-dev
+oc new-app  mongodb-persistent
+ssh-keygen -f id_rsa -N ''
+oc create secret generic sshkey --from-file=id_rsa
+
+oc project prometeo-test
+oc new-app  mongodb-persistent
+echo -e  'y\n' | ssh-keygen -f id_rsa -N ''
+oc create secret generic sshkey --from-file=id_rsa
+
+oc project prometeo-prod
+oc new-app  mongodb-persistent
+echo -e  'y\n' | ssh-keygen -f id_rsa -N ''
+oc create secret generic sshkey --from-file=id_rsa
