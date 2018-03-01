@@ -32,16 +32,19 @@ oc set triggers bc/jansible --from-image=java:latest
 
 ## Setup the dependent database and ssh secrets
 oc project prometeo-dev
-oc new-app  mongodb-persistent
+oc new-app  mongodb-ephemeral
 ssh-keygen -f id_rsa -N ''
 oc create secret generic sshkey --from-file=id_rsa
 
 oc project prometeo-test
-oc new-app  mongodb-persistent
+oc new-app  mongodb-ephemeral
 echo -e  'y\n' | ssh-keygen -f id_rsa -N ''
 oc create secret generic sshkey --from-file=id_rsa
 
 oc project prometeo-prod
-oc new-app  mongodb-persistent
+oc new-app  mongodb-ephemeral
 echo -e  'y\n' | ssh-keygen -f id_rsa -N ''
 oc create secret generic sshkey --from-file=id_rsa
+
+rm -r id_rsa
+rm -r id_rsa.pub
